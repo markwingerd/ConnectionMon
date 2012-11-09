@@ -6,15 +6,15 @@ many connections are opened for a given website or program so you can take
 action if a particular connection is unwanted.
 
 Usage
-=====
+-----
 TBD
 
 Examples
-++++++++
+--------
 TBD
 
 LICENSE
-+++++++
+-------
 Copyright (C) 2012 Mark Wingerd
 
 This program is free software: you can redistribute it and/or modify
