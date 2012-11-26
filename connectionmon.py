@@ -23,9 +23,13 @@ class ConnectionMonitor:
     def _get_nonblank_connections(self, conn):
         """Returns any connection that doesn't have 0.0.0.0 in its 
         rem_address"""
-        pass
+        conn = [item for item in conn if item['rem_address'][0] != '0.0.0.0']
+        return conn
 
 
 if __name__ == '__main__':
     monitor = ConnectionMonitor()
-    print monitor._get_tcp()
+    conn = monitor._get_tcp()
+    print conn
+    conn = monitor._get_nonblank_connections(conn)
+    print conn

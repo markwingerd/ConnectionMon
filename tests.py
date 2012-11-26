@@ -10,20 +10,13 @@ class ConnectionMonitorTest(unittest.TestCase):
         monitor = ConnectionMonitor()
         self.assertIn('rem_address',monitor._get_tcp()[0])
 
-#    def test_cleaned_connections(self):
-#        """Tests the cleaned information from procfs."""
-#        monitor = ConnectionMonitor()
-#        monitor.get_connections()
-#        self.assertIn('local_address',monitor.connections[0])
-#        self.assertIn('rem_address',monitor.connections[0])
-
     def test_get_nonblank_connections(self):
         """Tests that NULL addresses in procfs are removed."""
         monitor = ConnectionMonitor()
         ip = []
-        for item in monitor._get_tcp():
+        for item in monitor._get_nonblank_connections(monitor._get_tcp()):
             ip.append(item['rem_address'][0])
-        self.assertIn('0.0.0.0',ip)
+        self.assertNotIn('0.0.0.0',ip)
 
 if __name__ == '__main__':
     unittest.main()
