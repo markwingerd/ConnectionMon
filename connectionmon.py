@@ -7,6 +7,13 @@ class ConnectionMonitor:
         """Constructor"""
         self._proc = Proc()
 
+    def show_connections(self):
+        """"""
+        conn = self._get_tcp()
+        conn = self._get_nonblank_connections(conn)
+        for item in conn:
+            print item
+
     def _get_tcp(self):
         """Retrieves a list of connections and quits on error."""
         output = []
@@ -29,7 +36,4 @@ class ConnectionMonitor:
 
 if __name__ == '__main__':
     monitor = ConnectionMonitor()
-    conn = monitor._get_tcp()
-    print conn
-    conn = monitor._get_nonblank_connections(conn)
-    print conn
+    monitor.show_connections()
