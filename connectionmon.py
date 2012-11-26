@@ -8,7 +8,7 @@ class ConnectionMonitor:
         self._proc = Proc()
 
     def _get_tcp(self):
-        """"""
+        """Retrieves a list of connections and quits on error."""
         output = []
         try:
             for item in self._proc.net.tcp:
