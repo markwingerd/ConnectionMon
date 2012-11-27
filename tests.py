@@ -22,12 +22,13 @@ class ConnectionMonitorTest(unittest.TestCase):
         """Tests the ability to remove useless data."""
         monitor = ConnectionMonitor()
         conn = monitor._get_nonblank_connections(monitor._get_tcp())
-        conn = monitor._clean_connections(conn)
-        self.assertEqual(len(conn[0]),4)
+        conn = monitor._clean_connections(conn, 'tcp')
+        self.assertEqual(len(conn[0]),5)
         self.assertEqual('local_address' in conn[0], True)
         self.assertEqual('rem_address' in conn[0], True)
         self.assertEqual('domain' in conn[0], True)
         self.assertEqual('name' in conn[0], True)
+        self.assertEqual('transport_layer' in conn[0], True)
 
 if __name__ == '__main__':
     unittest.main()

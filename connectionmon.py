@@ -10,11 +10,11 @@ class ConnectionMonitor:
 
     def show_connections(self):
         """"""
-        conn = self._get_tcp()
-        conn = self._get_nonblank_connections(conn)
-        conn = self._clean_connections(conn)
+        raw = self._get_tcp()
+        raw = self._get_nonblank_connections(raw)
+        conn = self._clean_connections(raw, 'tcp')
         for item in conn:
-            print '{:<23}{:<50}{:<30}{:<30}'.format(item['name'], item['domain'], item['rem_address'], item['local_address'])
+            print '{:<23}{:<50}{:<5}{:<30}{:<30}'.format(item['name'], item['domain'], item['transport_layer'], item['rem_address'], item['local_address'])
 
     def _get_tcp(self):
         """Retrieves a list of connections and quits on error."""
@@ -35,7 +35,7 @@ class ConnectionMonitor:
         conn = [item for item in conn if item['rem_address'][0] != '0.0.0.0']
         return conn
 
-    def _clean_connections(self, conn):
+    def _clean_connections(self, conn, type):
         """"""
         output = []
         for item in conn:
@@ -43,6 +43,7 @@ class ConnectionMonitor:
             output.append({
                 'name': name,
                 'domain': domain,
+                'transport_layer': type,
                 'local_address': item['local_address'],
                 'rem_address': item['rem_address']})
         return output
@@ -62,3 +63,4 @@ class ConnectionMonitor:
 if __name__ == '__main__':
     monitor = ConnectionMonitor()
     monitor.show_connections()
+    #print monitor._proc.net.udp
