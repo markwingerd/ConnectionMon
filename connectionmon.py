@@ -1,5 +1,19 @@
 import socket
+import time
 from procfs import Proc #https://github.com/pmuller/procfs
+
+def timeit(method):
+
+    def timed(*args, **kw):
+        ts = time.time()
+        result = method(*args, **kw)
+        te = time.time()
+
+        #print '{:2.2f} sec - {:25} - {:100} - {:5} - {:100}'.format(te-ts, method.__name__, result, kw, args)
+        return result
+
+    return timed
+
 
 class ConnectionMonitor:
     """"""
@@ -7,7 +21,9 @@ class ConnectionMonitor:
     def __init__(self):
         """Constructor"""
         self._proc = Proc()
+        self._dnd = {} # Domain Name Dictionary
 
+    @timeit
     def show_connections(self):
         """"""
         raw = self._get_tcp()
@@ -16,6 +32,7 @@ class ConnectionMonitor:
         for item in conn:
             print '{:<23}{:<50}{:<5}{:<30}{:<30}'.format(item['name'], item['domain'], item['transport_layer'], item['rem_address'], item['local_address'])
 
+    @timeit
     def _get_tcp(self):
         """Retrieves a list of connections and quits on error."""
         output = []
@@ -29,12 +46,14 @@ class ConnectionMonitor:
             pass
         return output
 
+    @timeit
     def _get_nonblank_connections(self, conn):
         """Returns any connection that doesn't have 0.0.0.0 in its 
         rem_address"""
         conn = [item for item in conn if item['rem_address'][0] != '0.0.0.0']
         return conn
 
+    @timeit
     def _clean_connections(self, conn, type):
         """"""
         output = []
@@ -48,15 +67,22 @@ class ConnectionMonitor:
                 'rem_address': item['rem_address']})
         return output
 
+    @timeit
     def _get_domain(self, ip):
         """"""
         domain = ''
-        try:
-            domain = socket.gethostbyaddr(ip)[0]
+        if ip in self._dnd:
+            domain = self._dnd[ip]
             name, ext = domain.split('.')[-2:]
-        except:
-            domain = 'unknown'
-            name = 'unknown'
+        else:
+            try:
+                domain = socket.gethostbyaddr(ip)[0]
+                name, ext = domain.split('.')[-2:]
+                self._dnd[ip] = domain
+            except:
+                domain = 'unknown.na'
+                name = 'unknown'
+                self._dnd[ip] = domain
         return domain, name
 
 
