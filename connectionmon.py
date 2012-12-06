@@ -9,7 +9,7 @@ def timeit(method):
         result = method(*args, **kw)
         te = time.time()
 
-        #print '{:2.2f} sec - {:25} - {:100} - {:5} - {:100}'.format(te-ts, method.__name__, result, kw, args)
+        print '{:2.2f} sec - {:25} - {:100} - {:5} - {:100}'.format(te-ts, method.__name__, result, kw, args)
         return result
 
     return timed
@@ -29,8 +29,9 @@ class ConnectionMonitor:
         raw = self._get_tcp()
         raw = self._get_nonblank_connections(raw)
         conn = self._clean_connections(raw, 'tcp')
+        conn = sorted(conn, key=lambda k: k['name'])
         for item in conn:
-            print '{:<23}{:<50}{:<5}{:<30}{:<30}'.format(item['name'], item['domain'], item['transport_layer'], item['rem_address'], item['local_address'])
+            print '{:<15.15} {:<40.40} {:<5.5} {:<26.26} {:<26.26}'.format(item['name'], item['domain'], item['transport_layer'], item['rem_address'], item['local_address'])
 
     @timeit
     def _get_tcp(self):
@@ -46,14 +47,12 @@ class ConnectionMonitor:
             pass
         return output
 
-    @timeit
     def _get_nonblank_connections(self, conn):
         """Returns any connection that doesn't have 0.0.0.0 in its 
         rem_address"""
         conn = [item for item in conn if item['rem_address'][0] != '0.0.0.0']
         return conn
 
-    @timeit
     def _clean_connections(self, conn, type):
         """"""
         output = []
