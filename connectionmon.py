@@ -1,5 +1,6 @@
 import socket
 import time
+import sched, time
 from procfs import Proc #https://github.com/pmuller/procfs
 
 def timeit(method):
@@ -23,7 +24,6 @@ class ConnectionMonitor:
         self._proc = Proc()
         self._dnd = {} # Domain Name Dictionary
 
-    @timeit
     def show_connections(self):
         """"""
         raw = self._get_tcp()
@@ -33,7 +33,11 @@ class ConnectionMonitor:
         for item in conn:
             print '{:<15.15} {:<40.40} {:<5.5} {:<26.26} {:<26.26}'.format(item['name'], item['domain'], item['transport_layer'], item['rem_address'], item['local_address'])
 
-    @timeit
+    def auto_show_connections(self, sc):
+        """"""
+        self.show_connections()
+        sc.enter(1, 1, self.auto_show_connections, (sc,))
+
     def _get_tcp(self):
         """Retrieves a list of connections and quits on error."""
         output = []
@@ -66,7 +70,6 @@ class ConnectionMonitor:
                 'rem_address': item['rem_address']})
         return output
 
-    @timeit
     def _get_domain(self, ip):
         """"""
         domain = ''
@@ -88,4 +91,9 @@ class ConnectionMonitor:
 if __name__ == '__main__':
     monitor = ConnectionMonitor()
     monitor.show_connections()
-    #print monitor._proc.net.udp
+
+    #
+    #s = sched.scheduler(time.time, time.sleep)
+    #s.enter(1, 1, monitor.auto_show_connections, (s,))
+    #s.run()
+    #
