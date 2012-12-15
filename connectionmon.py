@@ -1,6 +1,8 @@
 import socket
 import time
 import sched, time
+import curses
+import os
 from procfs import Proc #https://github.com/pmuller/procfs
 
 def timeit(method):
@@ -22,21 +24,34 @@ class ConnectionMonitor:
     def __init__(self):
         """Constructor"""
         self._proc = Proc()
+        self.connections = {}
         self._dnd = {} # Domain Name Dictionary
 
-    def show_connections(self):
-        """"""
+    def get_connections(self):
         raw = self._get_tcp()
         raw = self._get_nonblank_connections(raw)
         conn = self._clean_connections(raw, 'tcp')
-        conn = sorted(conn, key=lambda k: k['name'])
         for item in conn:
-            print '{:<15.15} {:<40.40} {:<5.5} {:<26.26} {:<26.26}'.format(item['name'], item['domain'], item['transport_layer'], item['rem_address'], item['local_address'])
+            if item['rem_address'] in self.connections:
+                tmp = self.connections[item['rem_address']]
+                tmp['time_connected'] = time.time() - tmp['time_established']
+                self.connections[item['rem_address']] = tmp
+            else:
+                self.connections[item['rem_address']] = item
+        self.show_connections()
+
+    def show_connections(self):
+        """"""
+        conn = self.connections
+        os.system('clear')
+        print '{:<15.15} {:>10.10} {:<40.40} {:<5.5} {:<26.26} {:<26.26}'.format('NAME', 'TIME', 'DOMAIN', 'LAYER', 'REMOTE ADDRESS', 'LOCAL ADDRESS')
+        for item in conn.values():
+            print '{:<15.15} {:>10.2f} {:<40.40} {:<5.5} {:<26.26} {:<26.26}'.format(item['name'], item['time_connected'], item['domain'], item['transport_layer'], item['rem_address'], item['local_address'])
 
     def auto_show_connections(self, sc):
         """"""
-        self.show_connections()
-        sc.enter(1, 1, self.auto_show_connections, (sc,))
+        self.get_connections()
+        sc.enter(5, 1, self.auto_show_connections, (sc,))
 
     def _get_tcp(self):
         """Retrieves a list of connections and quits on error."""
@@ -66,8 +81,12 @@ class ConnectionMonitor:
                 'name': name,
                 'domain': domain,
                 'transport_layer': type,
-                'local_address': item['local_address'],
-                'rem_address': item['rem_address']})
+                'local_address': item['local_address'][0],
+                'local_port': item['local_address'][1],
+                'rem_address': item['rem_address'][0],
+                'rem_port': item['rem_address'][1],
+                'time_established': time.time(),
+                'time_connected': 0})
         return output
 
     def _get_domain(self, ip):
@@ -90,10 +109,12 @@ class ConnectionMonitor:
 
 if __name__ == '__main__':
     monitor = ConnectionMonitor()
-    monitor.show_connections()
-
-    #
-    #s = sched.scheduler(time.time, time.sleep)
-    #s.enter(1, 1, monitor.auto_show_connections, (s,))
-    #s.run()
-    #
+    
+    s = sched.scheduler(time.time, time.sleep)
+    try:
+        s.enter(1, 1, monitor.auto_show_connections, (s,))
+        s.run()
+    except KeyboardInterrupt:
+        # Catches when Ctrl-C is pressed.
+        print '\nExited'
+    
