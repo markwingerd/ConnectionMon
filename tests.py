@@ -23,12 +23,16 @@ class ConnectionMonitorTest(unittest.TestCase):
         monitor = ConnectionMonitor()
         conn = monitor._get_nonblank_connections(monitor._get_tcp())
         conn = monitor._clean_connections(conn, 'tcp')
-        self.assertEqual(len(conn[0]),5)
+        self.assertEqual(len(conn[0]),9)
         self.assertEqual('local_address' in conn[0], True)
+        self.assertEqual('local_port' in conn[0], True)
         self.assertEqual('rem_address' in conn[0], True)
+        self.assertEqual('rem_port' in conn[0], True)
         self.assertEqual('domain' in conn[0], True)
         self.assertEqual('name' in conn[0], True)
         self.assertEqual('transport_layer' in conn[0], True)
+        self.assertEqual('time_established' in conn[0], True)
+        self.assertEqual('time_connected' in conn[0], True)
 
 if __name__ == '__main__':
     unittest.main()

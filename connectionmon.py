@@ -2,7 +2,6 @@ import socket
 import time
 import sched, time
 import curses
-import os
 from procfs import Proc #https://github.com/pmuller/procfs
 
 def timeit(method):
@@ -26,31 +25,69 @@ class ConnectionMonitor:
         self._proc = Proc()
         self.connections = {}
         self._dnd = {} # Domain Name Dictionary
+        # Curses management
+        self.screen = curses.initscr()
+        self.screen_width = 80
+        self.screen_height = 20
 
-    def get_connections(self):
-        raw = self._get_tcp()
-        raw = self._get_nonblank_connections(raw)
-        conn = self._clean_connections(raw, 'tcp')
+    def update_connections(self):
+        """"""
+        #Get current connections
+        conn = self.get_connections()
+        #Add connections to list and Set open connections to active
+        self.add_connections(conn)
+        #Inactivate connections that just closed
+        self.inactivate_connections(conn)
+        #Show conections
+        self.show_connections()
+        pass
+
+    def add_connections(self, conn):
+        """"""
         for item in conn:
             if item['rem_address'] in self.connections:
+                # Update known connection.
                 tmp = self.connections[item['rem_address']]
+                if  not tmp['is_active']:
+                    #hotfix for inaccurate times. This connection just went active.
+                    tmp['time_established'] = time.time() - tmp['time_connected']
                 tmp['time_connected'] = time.time() - tmp['time_established']
+                tmp['is_active'] = True
                 self.connections[item['rem_address']] = tmp
             else:
+                # Add new connection.
+                item['is_active'] = True
                 self.connections[item['rem_address']] = item
-        self.show_connections()
+
+    def get_connections(self):
+        """"""
+        raw = self._get_tcp()
+        raw = self._get_nonblank_connections(raw)
+        return self._clean_connections(raw, 'tcp')
+
+    def inactivate_connections(self, conn):
+        """"""
+        active = []
+        for item in conn:
+            active.append(item['rem_address'])
+        for item in self.connections.values():
+            if item['rem_address'] not in active:
+                item['is_active'] = False
 
     def show_connections(self):
         """"""
         conn = self.connections
-        os.system('clear')
-        print '{:<15.15} {:>10.10} {:<40.40} {:<5.5} {:<26.26} {:<26.26}'.format('NAME', 'TIME', 'DOMAIN', 'LAYER', 'REMOTE ADDRESS', 'LOCAL ADDRESS')
-        for item in conn.values():
-            print '{:<15.15} {:>10.2f} {:<40.40} {:<5.5} {:<26.26} {:<26.26}'.format(item['name'], item['time_connected'], item['domain'], item['transport_layer'], item['rem_address'], item['local_address'])
+        output = '      {:<15.15} {:>10.10} {:<40.40} {:<5.5} {:<15.15} {:<15.15}'.format('NAME', 'TIME', 'DOMAIN', 'LAYER', 'REMOTE ADDRESS', 'LOCAL ADDRESS')
+        self.screen.addstr(0,0,output)
+        for i, item in enumerate(conn.values()):
+            if self.screen.enclose(i+2,0):
+                output = '{:<5.5} {:<15.15} {:>10.2f} {:<40.40} {:<5.5} {:<15.15} {:<15.15}'.format(str(item['is_active']), item['name'], item['time_connected'], item['domain'], item['transport_layer'], item['rem_address'], item['local_address'])
+                self.screen.addstr(i+1,0,output)
+        self.screen.refresh()
 
     def auto_show_connections(self, sc):
         """"""
-        self.get_connections()
+        self.update_connections()
         sc.enter(5, 1, self.auto_show_connections, (sc,))
 
     def _get_tcp(self):
@@ -107,6 +144,7 @@ class ConnectionMonitor:
         return domain, name
 
 
+
 if __name__ == '__main__':
     monitor = ConnectionMonitor()
     
@@ -117,4 +155,5 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         # Catches when Ctrl-C is pressed.
         print '\nExited'
-    
+    finally:
+        curses.endwin()
