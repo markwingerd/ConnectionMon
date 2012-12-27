@@ -30,45 +30,47 @@ class ConnectionMonitor:
         self.screen_width = 80
         self.screen_height = 20
 
-    def update_connections(self):
-        """"""
-        #Get current connections
-        conn = self.get_connections()
+    @timeit
+    def update(self):
+        """This method will add any new connections to the self.connections
+        attribute, update variables to self.connections, and call the display
+        method."""
         #Add connections to list and Set open connections to active
-        self.add_connections(conn)
+        self.update_active_connections()
         #Inactivate connections that just closed
-        self.inactivate_connections(conn)
-        #Show conections
+        self.update_inactivate_connections()
         self.show_connections()
-        pass
 
-    def add_connections(self, conn):
-        """"""
-        for item in conn:
-            if item['rem_address'] in self.connections:
-                # Update known connection.
-                tmp = self.connections[item['rem_address']]
-                if  not tmp['is_active']:
-                    #hotfix for inaccurate times. This connection just went active.
-                    tmp['time_established'] = time.time() - tmp['time_connected']
-                tmp['time_connected'] = time.time() - tmp['time_established']
-                tmp['is_active'] = True
-                self.connections[item['rem_address']] = tmp
-            else:
+    def update_active_connections(self):
+        """Adds any new connections listed in the conn argument or
+        updates the attributes of any currently active connections."""
+        def get_elapsed_time(t):
+            return time.time() - t
+        def reset_time(tmp):
+            """Used to reset the timer if this item has been
+            reactivated on this check"""
+            if  not tmp['is_active']:
+                #hotfix for inaccurate times. This connection just went active.
+                tmp['time_established'] = get_elapsed_time(tmp['time_connected'])
+            return tmp
+
+        for item in self._get_tcp():
+            if item['rem_address'] not in self.connections:
                 # Add new connection.
                 item['is_active'] = True
                 self.connections[item['rem_address']] = item
+            else:
+                # Update known connection.
+                tmp = self.connections[item['rem_address']]
+                tmp = reset_time(tmp)
+                tmp['time_connected'] = get_elapsed_time(tmp['time_established'])
+                tmp['is_active'] = True
+                self.connections[item['rem_address']] = tmp
 
-    def get_connections(self):
-        """"""
-        raw = self._get_tcp()
-        raw = self._get_nonblank_connections(raw)
-        return self._clean_connections(raw, 'tcp')
-
-    def inactivate_connections(self, conn):
+    def update_inactivate_connections(self):
         """"""
         active = []
-        for item in conn:
+        for item in self._get_tcp():
             active.append(item['rem_address'])
         for item in self.connections.values():
             if item['rem_address'] not in active:
@@ -87,7 +89,7 @@ class ConnectionMonitor:
 
     def auto_show_connections(self, sc):
         """"""
-        self.update_connections()
+        self.update()
         sc.enter(5, 1, self.auto_show_connections, (sc,))
 
     def _get_tcp(self):
@@ -99,11 +101,14 @@ class ConnectionMonitor:
         except TypeError:
             # This will silently crash by design.
             # Nov 8th 2012: procfs will throw a type error when there are no
-            # more sockets to display.
+            # more sockets to return.
             pass
+        finally:
+            output = self._remove_blank_connections(output)
+            output = self._clean_connections(output, 'tcp')
         return output
 
-    def _get_nonblank_connections(self, conn):
+    def _remove_blank_connections(self, conn):
         """Returns any connection that doesn't have 0.0.0.0 in its 
         rem_address"""
         conn = [item for item in conn if item['rem_address'][0] != '0.0.0.0']
