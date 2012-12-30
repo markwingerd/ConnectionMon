@@ -93,7 +93,9 @@ class ConnectionMonitor:
         sc.enter(5, 1, self.auto_show_connections, (sc,))
 
     def _get_tcp(self):
-        """Retrieves a list of connections and quits on error."""
+        """Retrieves a list of connections and quits on error.
+        - This should be called as few times as possible. Currently 
+        called two times. Work on reducing that to one."""
         output = []
         try:
             for item in self._proc.net.tcp:
