@@ -17,6 +17,49 @@ def timeit(method):
     return timed
 
 
+class ConnectionViewer:
+    """"""
+    def __init__(self):
+        """"""
+        self.monitor = ConnectionMonitor()
+        # Curses management
+        self.screen = curses.initscr()
+        self.screen_width = 80
+        self.screen_height = 20
+        # Sorting Constants
+        self.NONE = 0
+        self.ACTIVE = 1
+        self.NAME = 2
+        self.TIME = 3
+
+    def display(self):
+        """Displays the connections once with curses."""
+        self.monitor.update()
+        conn = self.monitor.connections
+        self._show(conn)
+
+    def auto_display(self, sc):
+        """Displays the connections once with curses."""
+        self.display()
+        sc.enter(5, 1, self.auto_display, (sc,))
+
+    def _show(self, conn):
+        """"""
+        output = '      {:<15.15} {:>10.10} {:<40.40} {:<5.5} {:<15.15} {:<15.15}'.format('NAME', 'TIME', 'DOMAIN', 'LAYER', 'REMOTE ADDRESS', 'LOCAL ADDRESS')
+        self.screen.addstr(0,0,output)
+        for i, item in enumerate(conn.values()):
+            if self.screen.enclose(i+2,0):
+                output = '{:<5.5} {:<15.15} {:>10.2f} {:<40.40} {:<5.5} {:<15.15} {:<15.15}'.format(str(item['is_active']), item['name'], item['time_connected'], item['domain'], item['transport_layer'], item['rem_address'], item['local_address'])
+                self.screen.addstr(i+1,0,output)
+        self.screen.refresh()
+
+    def _sort_connections(self, conn, sort_by):
+        """Sorts the connections based on a given tuple."""
+        ordered_keys = conn.keys()
+        sorted(ordered_keys, key=conn['name'])
+        return ordered_keys
+
+
 class ConnectionMonitor:
     """"""
 
@@ -25,12 +68,7 @@ class ConnectionMonitor:
         self._proc = Proc()
         self.connections = {}
         self._dnd = {} # Domain Name Dictionary
-        # Curses management
-        self.screen = curses.initscr()
-        self.screen_width = 80
-        self.screen_height = 20
 
-    @timeit
     def update(self):
         """This method will add any new connections to the self.connections
         attribute, update variables to self.connections, and call the display
@@ -39,7 +77,6 @@ class ConnectionMonitor:
         self.update_active_connections()
         #Inactivate connections that just closed
         self.update_inactivate_connections()
-        self.show_connections()
 
     def update_active_connections(self):
         """Adds any new connections listed in the conn argument or
@@ -75,22 +112,6 @@ class ConnectionMonitor:
         for item in self.connections.values():
             if item['rem_address'] not in active:
                 item['is_active'] = False
-
-    def show_connections(self):
-        """"""
-        conn = self.connections
-        output = '      {:<15.15} {:>10.10} {:<40.40} {:<5.5} {:<15.15} {:<15.15}'.format('NAME', 'TIME', 'DOMAIN', 'LAYER', 'REMOTE ADDRESS', 'LOCAL ADDRESS')
-        self.screen.addstr(0,0,output)
-        for i, item in enumerate(conn.values()):
-            if self.screen.enclose(i+2,0):
-                output = '{:<5.5} {:<15.15} {:>10.2f} {:<40.40} {:<5.5} {:<15.15} {:<15.15}'.format(str(item['is_active']), item['name'], item['time_connected'], item['domain'], item['transport_layer'], item['rem_address'], item['local_address'])
-                self.screen.addstr(i+1,0,output)
-        self.screen.refresh()
-
-    def auto_show_connections(self, sc):
-        """"""
-        self.update()
-        sc.enter(5, 1, self.auto_show_connections, (sc,))
 
     def _get_tcp(self):
         """Retrieves a list of connections and quits on error.
@@ -153,14 +174,20 @@ class ConnectionMonitor:
 
 
 if __name__ == '__main__':
-    monitor = ConnectionMonitor()
+    viewer = ConnectionViewer()
     
     s = sched.scheduler(time.time, time.sleep)
     try:
-        s.enter(1, 1, monitor.auto_show_connections, (s,))
+        s.enter(1, 1, viewer.auto_display, (s,))
         s.run()
     except KeyboardInterrupt:
         # Catches when Ctrl-C is pressed.
         print '\nExited'
     finally:
         curses.endwin()
+    """
+    viewer = ConnectionViewer()
+    viewer.display()
+    time.sleep(5)
+    curses.endwin()
+    """
