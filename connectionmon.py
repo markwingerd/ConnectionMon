@@ -47,7 +47,7 @@ class ConnectionViewer:
         """"""
         output = '      {:<15.15} {:>10.10} {:<40.40} {:<5.5} {:<15.15} {:<15.15}'.format('NAME', 'TIME', 'DOMAIN', 'LAYER', 'REMOTE ADDRESS', 'LOCAL ADDRESS')
         self.screen.addstr(0,0,output)
-        for i, item in enumerate(conn.values()):
+        for i, item in enumerate(conn):
             if self.screen.enclose(i+2,0):
                 output = '{:<5.5} {:<15.15} {:>10.2f} {:<40.40} {:<5.5} {:<15.15} {:<15.15}'.format(str(item['is_active']), item['name'], item['time_connected'], item['domain'], item['transport_layer'], item['rem_address'], item['local_address'])
                 self.screen.addstr(i+1,0,output)
@@ -66,7 +66,7 @@ class ConnectionMonitor:
     def __init__(self):
         """Constructor"""
         self._proc = Proc()
-        self.connections = {}
+        self.connections = []
         self._dnd = {} # Domain Name Dictionary
 
     def update(self):
@@ -90,26 +90,44 @@ class ConnectionMonitor:
                 #hotfix for inaccurate times. This connection just went active.
                 tmp['time_established'] = get_elapsed_time(tmp['time_connected'])
             return tmp
+        def get_item_index(conn, rem_address):
+            """Returns the index of a dictionary in the list based on
+            the rem_address."""
+            for i, item in enumerate(conn):
+                if rem_address == item['rem_address']:
+                    return i
+            return 'ERROR'
+        def get_value_list(conn, key):
+            """Returns a list of values when given the dictionaries
+            key."""
+            output = []
+            for item in conn:
+                output.append(item[key])
+            return output
 
-        for item in self._get_tcp():
-            if item['rem_address'] not in self.connections:
+        conn = self._get_tcp()
+        rem_list = get_value_list(self.connections, 'rem_address')
+        for item in conn:
+            if item['rem_address'] not in rem_list:
                 # Add new connection.
                 item['is_active'] = True
-                self.connections[item['rem_address']] = item
+                self.connections.append(item)
+                rem_list.append(item['rem_address'])
             else:
                 # Update known connection.
-                tmp = self.connections[item['rem_address']]
+                index = get_item_index(self.connections, item['rem_address'])
+                tmp = self.connections[index]
                 tmp = reset_time(tmp)
                 tmp['time_connected'] = get_elapsed_time(tmp['time_established'])
                 tmp['is_active'] = True
-                self.connections[item['rem_address']] = tmp
+                self.connections[index] = tmp
 
     def update_inactivate_connections(self):
         """"""
         active = []
         for item in self._get_tcp():
             active.append(item['rem_address'])
-        for item in self.connections.values():
+        for item in self.connections:
             if item['rem_address'] not in active:
                 item['is_active'] = False
 
