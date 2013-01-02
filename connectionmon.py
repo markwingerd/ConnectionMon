@@ -29,6 +29,7 @@ class ConnectionViewer:
         self.screen_width = 80
         self.screen_height = 20
 
+    @timeit
     def display(self):
         """Displays the connections once with curses."""
         self.monitor.update()
@@ -82,16 +83,19 @@ class ConnectionMonitor:
         self.connections = []
         self._dnd = {} # Domain Name Dictionary
 
+    @timeit
     def update(self):
         """This method will add any new connections to the self.connections
         attribute, update variables to self.connections, and call the display
         method."""
+        conn = self._get_tcp()
         #Add connections to list and Set open connections to active
-        self.update_active_connections()
+        self.update_active_connections(conn)
         #Inactivate connections that just closed
-        self.update_inactivate_connections()
+        self.update_inactivate_connections(conn)
 
-    def update_active_connections(self):
+    @timeit
+    def update_active_connections(self, conn):
         """Adds any new connections listed in the conn argument or
         updates the attributes of any currently active connections."""
         def get_elapsed_time(t):
@@ -118,7 +122,6 @@ class ConnectionMonitor:
                 output.append(item[key])
             return output
 
-        conn = self._get_tcp()
         rem_list = get_value_list(self.connections, 'rem_address')
         for item in conn:
             if item['rem_address'] not in rem_list:
@@ -135,15 +138,16 @@ class ConnectionMonitor:
                 tmp['is_active'] = True
                 self.connections[index] = tmp
 
-    def update_inactivate_connections(self):
+    def update_inactivate_connections(self, conn):
         """"""
         active = []
-        for item in self._get_tcp():
+        for item in conn:
             active.append(item['rem_address'])
         for item in self.connections:
             if item['rem_address'] not in active:
                 item['is_active'] = False
 
+    @timeit
     def _get_tcp(self):
         """Retrieves a list of connections and quits on error.
         - This should be called as few times as possible. Currently 
