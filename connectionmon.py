@@ -2,6 +2,7 @@ import socket
 import time
 import sched, time
 import curses
+import os, sys
 from procfs import Proc #https://github.com/pmuller/procfs
 
 def timeit(method):
@@ -11,7 +12,8 @@ def timeit(method):
         result = method(*args, **kw)
         te = time.time()
 
-        print '{:2.2f} sec - {:25} - {:100} - {:5} - {:100}'.format(te-ts, method.__name__, result, kw, args)
+        #print '{:2.2f} sec - {:25} - {:100} - {:5} - {:100}'.format(te-ts, method.__name__, result, kw, args)
+        print '{:2.2f} sec - {:25}'.format(te-ts, method.__name__)
         return result
 
     return timed
@@ -26,16 +28,12 @@ class ConnectionViewer:
         self.screen = curses.initscr()
         self.screen_width = 80
         self.screen_height = 20
-        # Sorting Constants
-        self.NONE = 0
-        self.ACTIVE = 1
-        self.NAME = 2
-        self.TIME = 3
 
     def display(self):
         """Displays the connections once with curses."""
         self.monitor.update()
         conn = self.monitor.connections
+        conn = sorted(conn, cmp=self._comparator)
         self._show(conn)
 
     def auto_display(self, sc):
@@ -53,11 +51,26 @@ class ConnectionViewer:
                 self.screen.addstr(i+1,0,output)
         self.screen.refresh()
 
-    def _sort_connections(self, conn, sort_by):
-        """Sorts the connections based on a given tuple."""
-        ordered_keys = conn.keys()
-        sorted(ordered_keys, key=conn['name'])
-        return ordered_keys
+    def _comparator(self, a, b):
+        """Used by sorted which compares two given dictionaries in a 
+        list."""
+        def compare_two(c, d, direction='asc'):
+            if direction == 'desc':
+                c, d = d, c
+            if c < d:
+                return -1
+            elif c > d:
+                return 1
+            else:
+                return 0
+        
+        cmp_active = compare_two(a['is_active'], b['is_active'], 'desc')
+        if cmp_active:
+            return cmp_active
+        cmp_name = compare_two(a['name'], b['name'])
+        if cmp_name:
+            return cmp_name
+        return compare_two(a['time_connected'], b['time_connected'])
 
 
 class ConnectionMonitor:
