@@ -1,54 +1,95 @@
+#!/usr/bin/env python
+# connectionmon.py - Views your network connections.
+# Copyright (C) 2013 Mark Wingerd <markwingerd@yahoo.com>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+"""Views your network connections."""
+
+__author__ = 'Mark Wingerd'
+__email__ = 'markwingerd@yahoo.com'
+__version__ = '0.1'
+__copyright__ = 'Copyright (C) 2013 Mark Wingerd'
+__license__ = 'GPLv3'
+__maintainer__ = 'Mark Wingerd'
+__credits__ = ['Mansour']
+
 import socket
 import time
-import sched, time
+import sched
+import time
 import curses
-import os, sys
+import os
+import sys
 from procfs import Proc #https://github.com/pmuller/procfs
 
 def timeit(method):
-
+    """Decorator for timing functions."""
     def timed(*args, **kw):
         ts = time.time()
         result = method(*args, **kw)
         te = time.time()
+        # Longer display
+        #print '{:2.2f} sec - {:25} - {:100} - {:5} - {:100}'.format(
+        #    te-ts,  method.__name__, result, kw, args)
 
-        #print '{:2.2f} sec - {:25} - {:100} - {:5} - {:100}'.format(te-ts, method.__name__, result, kw, args)
+        # Shorter display
         print '{:2.2f} sec - {:25}'.format(te-ts, method.__name__)
         return result
-
     return timed
 
 
 class ConnectionViewer:
-    """"""
+    """Displays connections from ConnectionMonitor."""
     def __init__(self):
-        """"""
         self.monitor = ConnectionMonitor()
         # Curses management
         self.screen = curses.initscr()
         self.screen_width = 80
         self.screen_height = 20
 
-    @timeit
-    def display(self):
-        """Displays the connections once with curses."""
+    def display_once(self):
+        """Displays the connections once."""
         self.monitor.update()
-        conn = self.monitor.connections
-        conn = sorted(conn, cmp=self._comparator)
-        self._show(conn)
+        sorted_conn = sorted(self.monitor.connections, cmp=self._comparator)
+        self._show(sorted_conn)
 
-    def auto_display(self, sc):
-        """Displays the connections once with curses."""
-        self.display()
-        sc.enter(5, 1, self.auto_display, (sc,))
+    def display_repeatedly(self, sch, delay=15, priority=1):
+        """Displays the connections repeatedly by calling 
+        display_once repeatedly with sched."""
+        self.display_once()
+        sch.enter(delay, priority, self.display_repeatedly, 
+                  (sch,delay, priority))
 
     def _show(self, conn):
-        """"""
-        output = '      {:<15.15} {:>10.10} {:<40.40} {:<5.5} {:<15.15} {:<15.15}'.format('NAME', 'TIME', 'DOMAIN', 'LAYER', 'REMOTE ADDRESS', 'LOCAL ADDRESS')
+        """Output to terminal using curses screen."""
+        # Displays column titles
+        output = ('      {:<15.15} {:>10.10} {:<40.40} {:<5.5} {:<15.15} '
+                '{:<15.15}').format('NAME', 'TIME', 'DOMAIN', 'LAYER', 
+                                    'REMOTE ADDRESS', 'LOCAL ADDRESS')
         self.screen.addstr(0,0,output)
+
+        # Writes every line in conn
         for i, item in enumerate(conn):
+            # Prints only if there is enough screen space. Leaves 2 lines of
+            # extra space.
             if self.screen.enclose(i+2,0):
-                output = '{:<5.5} {:<15.15} {:>10.2f} {:<40.40} {:<5.5} {:<15.15} {:<15.15}'.format(str(item['is_active']), item['name'], item['time_connected'], item['domain'], item['transport_layer'], item['rem_address'], item['local_address'])
+                output = ('{:<5.5} {:<15.15} {:>10.2f} {:<40.40} {:<5.5} '
+                          '{:<15.15} {:<15.15}').format(str(item['is_active']), 
+                                item['name'], item['time_connected'], 
+                                item['domain'], item['transport_layer'], 
+                                item['rem_address'], item['local_address'])
                 self.screen.addstr(i+1,0,output)
         self.screen.refresh()
 
@@ -75,37 +116,30 @@ class ConnectionViewer:
 
 
 class ConnectionMonitor:
-    """"""
-
+    """Gets and stores connection data."""
     def __init__(self):
-        """Constructor"""
         self._proc = Proc()
-        self.connections = []
+        self.connections = [] # List of dictionaries
         self._dnd = {} # Domain Name Dictionary
 
-    @timeit
     def update(self):
         """This method will add any new connections to the self.connections
-        attribute, update variables to self.connections, and call the display
-        method."""
+        attribute, update variables to self.connections."""
         conn = self._get_tcp()
-        #Add connections to list and Set open connections to active
         self.update_active_connections(conn)
-        #Inactivate connections that just closed
         self.update_inactivate_connections(conn)
 
-    @timeit
     def update_active_connections(self, conn):
         """Adds any new connections listed in the conn argument or
-        updates the attributes of any currently active connections."""
-        def get_elapsed_time(t):
-            return time.time() - t
+        updates the attributes of any currently known active connections."""
+        def get_elapsed_time(start_time):
+            return time.time() - start_time
         def reset_time(tmp):
-            """Used to reset the timer if this item has been
-            reactivated on this check"""
-            if  not tmp['is_active']:
+            """Modifies time_connected cell in the tmp dictionary."""
+            # If this item is being reactivated, reset the timer
+            if not tmp['is_active']:
                 #hotfix for inaccurate times. This connection just went active.
-                tmp['time_established'] = get_elapsed_time(tmp['time_connected'])
+                tmp['time_est'] = get_elapsed_time(tmp['time_connected'])
             return tmp
         def get_item_index(conn, rem_address):
             """Returns the index of a dictionary in the list based on
@@ -113,45 +147,49 @@ class ConnectionMonitor:
             for i, item in enumerate(conn):
                 if rem_address == item['rem_address']:
                     return i
-            return 'ERROR'
-        def get_value_list(conn, key):
-            """Returns a list of values when given the dictionaries
-            key."""
-            output = []
-            for item in conn:
-                output.append(item[key])
-            return output
+            return 'ERROR' #This should not happen. Fix if it does.
 
-        rem_list = get_value_list(self.connections, 'rem_address')
+        # List of all remote addresses collected to compare to current remote
+        # addresses.
+        rem_list = self._get_value_list(self.connections, 'rem_address')
         for item in conn:
             if item['rem_address'] not in rem_list:
-                # Add new connection.
+                # Add new connection. Line order is important here.
                 item['is_active'] = True
                 self.connections.append(item)
                 rem_list.append(item['rem_address'])
             else:
-                # Update known connection.
+                # Update known connection. Line order is important here.
                 index = get_item_index(self.connections, item['rem_address'])
                 tmp = self.connections[index]
+
                 tmp = reset_time(tmp)
-                tmp['time_connected'] = get_elapsed_time(tmp['time_established'])
+                tmp['time_connected'] = get_elapsed_time(tmp['time_est'])
                 tmp['is_active'] = True
+
                 self.connections[index] = tmp
 
     def update_inactivate_connections(self, conn):
-        """"""
-        active = []
-        for item in conn:
-            active.append(item['rem_address'])
+        """Scans all known connections and if any are not in the list of 
+        current connections, their is_active cell will be set to False."""
+        active_list = self._get_value_list(conn, 'rem_address')
         for item in self.connections:
-            if item['rem_address'] not in active:
+            if item['rem_address'] not in active_list:
                 item['is_active'] = False
 
-    @timeit
+    def _get_value_list(self, conn, key):
+        """Returns a list of values when given the dictionaries
+        key."""
+        output = []
+        for item in conn:
+            output.append(item[key])
+        return output
+
     def _get_tcp(self):
         """Retrieves a list of connections and quits on error.
-        - This should be called as few times as possible. Currently 
-        called two times. Work on reducing that to one."""
+        Returns a list of dictionaries which are the current connections found
+        on the network.
+        - This should be called as few times as possible."""
         output = []
         try:
             for item in self._proc.net.tcp:
@@ -169,11 +207,11 @@ class ConnectionMonitor:
     def _remove_blank_connections(self, conn):
         """Returns any connection that doesn't have 0.0.0.0 in its 
         rem_address"""
-        conn = [item for item in conn if item['rem_address'][0] != '0.0.0.0']
-        return conn
+        return [item for item in conn if item['rem_address'][0] != '0.0.0.0']
 
     def _clean_connections(self, conn, type):
-        """"""
+        """Takes the raw connections found on the network and collects all the
+        useful information needed to output."""
         output = []
         for item in conn:
             domain, name = self._get_domain(item['rem_address'][0])
@@ -185,21 +223,26 @@ class ConnectionMonitor:
                 'local_port': item['local_address'][1],
                 'rem_address': item['rem_address'][0],
                 'rem_port': item['rem_address'][1],
-                'time_established': time.time(),
+                'time_est': time.time(),
                 'time_connected': 0})
         return output
 
     def _get_domain(self, ip):
-        """"""
-        domain = ''
+        """Uses the ip address to get the domain name. When a new ip is given
+        it will add it and its domain information to the _dnd dictionary so
+        few calls to gethostbyaddr are needed."""
+        
+        # If the domain has already been found
         if ip in self._dnd:
             domain = self._dnd[ip]
             name, ext = domain.split('.')[-2:]
+        # If the domain is currently unknown.
         else:
             try:
                 domain = socket.gethostbyaddr(ip)[0]
                 name, ext = domain.split('.')[-2:]
                 self._dnd[ip] = domain
+            # gethostbyaddr could not find a name.
             except:
                 domain = 'unknown.na'
                 name = 'unknown'
@@ -211,10 +254,10 @@ class ConnectionMonitor:
 if __name__ == '__main__':
     viewer = ConnectionViewer()
     
-    s = sched.scheduler(time.time, time.sleep)
+    sch = sched.scheduler(time.time, time.sleep)
     try:
-        s.enter(1, 1, viewer.auto_display, (s,))
-        s.run()
+        sch.enter(1, 1, viewer.display_repeatedly, (sch,5))
+        sch.run()
     except KeyboardInterrupt:
         # Catches when Ctrl-C is pressed.
         print '\nExited'
@@ -222,7 +265,7 @@ if __name__ == '__main__':
         curses.endwin()
     """
     viewer = ConnectionViewer()
-    viewer.display()
+    viewer.display_once()
     time.sleep(5)
     curses.endwin()
     """
