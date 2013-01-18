@@ -19,11 +19,11 @@
 
 __author__ = 'Mark Wingerd'
 __email__ = 'markwingerd@yahoo.com'
-__version__ = '0.1'
+__version__ = '0.1.1a1'
 __copyright__ = 'Copyright (C) 2013 Mark Wingerd'
 __license__ = 'GPLv3'
 __maintainer__ = 'Mark Wingerd'
-__credits__ = ['Mansour']
+__credits__ = ['Wingerd']
 
 import socket
 import time
@@ -32,6 +32,7 @@ import time
 import curses
 import os
 import sys
+import argparse
 from procfs import Proc #https://github.com/pmuller/procfs
 
 def timeit(method):
@@ -250,19 +251,24 @@ class ConnectionMonitor:
         return domain, name
 
 
-
 if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(description='Display network connections.')
+    parser.add_argument('-i', '--interval', type=int, 
+                        help='time between updates')
+    args = parser.parse_args()
+
     viewer = ConnectionViewer()
-    
     sch = sched.scheduler(time.time, time.sleep)
     try:
-        sch.enter(1, 1, viewer.display_repeatedly, (sch,5))
+        sch.enter(1, 1, viewer.display_repeatedly, (sch, args.interval))
         sch.run()
     except KeyboardInterrupt:
         # Catches when Ctrl-C is pressed.
         print '\nExited'
     finally:
         curses.endwin()
+
     """
     viewer = ConnectionViewer()
     viewer.display_once()
